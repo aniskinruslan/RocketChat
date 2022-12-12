@@ -1,0 +1,56 @@
+version: '3'
+
+services:
+
+  rocketchat:
+    image: registry.rocket.chat/rocketchat/rocket.chat:5.0
+    restart: on-failure
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.rocketchat.rule: Host(`yourdomain.com`)
+      traefik.http.routers.rocketchat.tls: "true"
+      traefik.http.routers.rocketchat.entrypoints: https
+      traefik.http.routers.rocketchat.tls.certresolver: le
+    environment:
+      MONGO_URL: mongodb://mongo:27017/rocketchat
+      MONGO_OPLOG_URL: mongodb://mongo:27017/local
+      ROOT_URL: http://yourdomain.com
+      PORT: "3000"
+      DEPLOY_METHOD: docker
+    depends_on:
+      - mongodb
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
+
+  mongodb:
+    image: docker.io/bitnami/mongodb:4.4
+    restart: on-failure
+    volumes:
+      - /home/data/rocketchat/mongodb/data:/data/db
+      - /home/data/rocketchat/backups/mongodb:/backups
+    environment:
+      MONGODB_REPLICA_SET_MODE: primary
+      MONGODB_REPLICA_SET_NAME: rs0
+      MONGODB_PORT_NUMBER: "27017"
+      MONGODB_INITIAL_PRIMARY_HOST: mongodb
+      MONGODB_INITIAL_PRIMARY_PORT_NUMBER: 27017
+      MONGODB_ADVERTISED_HOSTNAME: mongodb
+      MONGODB_ENABLE_JOURNAL: true
+      ALLOW_EMPTY_PASSWORD: yes
+
+  traefik:
+    image: docker.io/traefik:2.6.1
+    command:
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.https.address=:443
+      - --certificatesresolvers.le.acme.tlschallenge=true
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - traefik:/
+      - /run/docker.sock:/var/run/docker.sock:ro
